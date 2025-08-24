@@ -75,7 +75,7 @@ class HomeScreenMobileState extends State<HomeScreenMobile> {
                   if (!context.useGlassMode) _buildBackgroundImage,
                   _buildAvatar,
                   _buildUserInfo,
-                  _buildCards,
+                  _buildCards, // 👈 includes Downloads now
                 ],
               );
             }),
@@ -262,6 +262,17 @@ class HomeScreenMobileState extends State<HomeScreenMobile> {
                   MediaListScreen(
                     anime: false,
                     id: data.userid ?? 0,
+                  ),
+                ),
+              ),
+              MediaCard(
+                context,
+                "DOWNLOADS", // 👈 New card
+                "https://cdn-icons-png.flaticon.com/512/833/833524.png",
+                onTap: () => navigateToPage(
+                  context,
+                  const DownloadPage(
+                    primaryUrl: "https://example.com/file.mp4",
                   ),
                 ),
               ),

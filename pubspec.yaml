@@ -32,8 +32,6 @@ dependencies:
   json_annotation: ^4.9.0
 
   # Local Storage
-  isar: 3.1.0+1
-  isar_flutter_libs: 3.1.0+1
   path_provider: ^2.1.5
   path: ^1.9.1
 
@@ -73,11 +71,7 @@ dependencies:
   window_manager: ^0.5.0
   permission_handler: ^12.0.0+1
   flutter_inappwebview: ^6.2.0-beta.2
-  desktop_webview_window:
-    git:
-      url: https://github.com/kodjodevf/desktop_webview_window.git
-      path: packages/desktop_webview_window
-      ref: main
+  desktop_webview_window: ^0.2.3
   wakelock_plus: ^1.3.2
   volume_controller: ^3.4.0 #dont change
   screen_brightness: ^2.1.4 #dont change
@@ -100,7 +94,7 @@ dependencies:
   flutter_dotenv: ^5.2.1
   dartotsu_extension_bridge:
     git:
-     url: https://github.com/aayush2622/DartotsuExtensionBridge.git
+     url: https://github.com/SyedArbaazHussain/DartotsuExtensionBridge.git
      ref: master
     #path: ../DartotsuExtensionBridge
 
@@ -112,15 +106,11 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   
   # Code Generation
-  isar_generator: ^3.1.0+1
   json_serializable: ^6.0.1
   build_runner: ^2.5.3
   inno_bundle: ^0.9.0
-dependency_overrides:
-  analyzer: ">=5.2.0 <7.0.0"
-  js: ">=0.6.3 <0.7.1"
+
   collection: ^1.19.1
-  desktop_webview_window: ^0.2.3
 
 # Flutter-specific configurations
 flutter:
@@ -154,8 +144,7 @@ flutter:
     - assets/svg/extensions.svg
     - assets/svg/incognito.svg
     - shorebird.yaml
-# Flutter Launcher Icons Configuration
-# dart run flutter_launcher_icons
+
 flutter_icons:
   ios: true
   image_path: "assets/images/logo.png"
@@ -172,11 +161,11 @@ flutter_icons:
 inno_bundle:
   sign_tool:
     command: $p
-  id: 609d9fb9-ac99-533b-a5b5-f277afa99b68 # <-- Put your app id here
-  publisher: Ankit Grai # Optional, but recommended.
-  name: Dartotsu # Also optional, but recommended.
-  version: 0.0.3 # Optional, but recommended.
+  id: 609d9fb9-ac99-533b-a5b5-f277afa99b68
+  publisher: Ankit Grai
+  name: Dartotsu
+  version: 0.0.3
   admin: auto
   installer_icon: assets/images/lol.ico
-  languages: # Arabic was causing issues so switched to only English for installer
+  languages:
     - english

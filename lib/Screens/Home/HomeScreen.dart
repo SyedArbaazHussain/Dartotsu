@@ -23,6 +23,7 @@ import '../MediaList/MediaListScreen.dart';
 import '../Settings/SettingsBottomSheet.dart';
 import 'Widgets/AvtarWidget.dart';
 import 'Widgets/NotificationBadge.dart';
+import '../Downloads/DownloadPage.dart';
 
 part 'HomeScreenDesktop.dart';
 part 'HomeScreenMobile.dart';

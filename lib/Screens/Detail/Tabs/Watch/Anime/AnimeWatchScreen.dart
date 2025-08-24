@@ -12,6 +12,9 @@ import 'AnimeParser.dart';
 import 'Widget/BuildChunkSelector.dart';
 import 'Widget/ContinueCard.dart';
 
+// ⬇️ assumes you created DownloadPage at lib/services/download_page.dart
+import '../../../../Downloads/DownloadPage.dart';
+
 class AnimeWatchScreen extends StatefulWidget {
   final Media mediaData;
 
@@ -40,7 +43,7 @@ class AnimeWatchScreenState extends BaseWatchScreen<AnimeWatchScreen> {
   }
 
   @override
-  get widgetList => [_buildEpisodeList()];
+  List<Widget> get widgetList => [_buildEpisodeList()];
 
   Widget _buildEpisodeList() {
     return Column(
@@ -48,83 +51,151 @@ class AnimeWatchScreenState extends BaseWatchScreen<AnimeWatchScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildTitle(),
-        Obx(
-          () {
-            var episodeList = _viewModel.episodeList.value;
-            if (episodeList == null) {
-              return const Center(child: CircularProgressIndicator());
-            }
+        Obx(() {
+          final episodeMap = _viewModel.episodeList.value;
+          if (episodeMap == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            if (!_viewModel.episodeDataLoaded.value) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (episodeList.isEmpty) {
-              return Column(
-                children: [
-                  Center(
-                    child: Text(
-                      _viewModel.errorType.value == ErrorType.NotFound
-                          ? 'Media not found'
-                          : 'No episodes found',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontWeight: FontWeight.bold,
-                      ),
+          if (!_viewModel.episodeDataLoaded.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (episodeMap.isEmpty) {
+            return Column(
+              children: [
+                Center(
+                  child: Text(
+                    _viewModel.errorType.value == ErrorType.NotFound
+                        ? 'Media not found'
+                        : 'No episodes found',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ],
-              );
-            }
-            updateEpisodeDetails(episodeList);
-
-            var (chunks, initChunkIndex) = buildChunks(
-                context, episodeList, widget.mediaData.userProgress.toString());
-
-            var selectedEpisode = episodeList.values.firstWhereOrNull(
-                (element) =>
-                    element.episodeNumber ==
-                    ((widget.mediaData.userProgress ?? 0) + 1).toString());
-
-            RxInt selectedChunkIndex = (-1).obs;
-
-            selectedChunkIndex = selectedChunkIndex.value == -1
-                ? initChunkIndex
-                : selectedChunkIndex;
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ContinueCard(
-                  mediaData: widget.mediaData,
-                  episode: selectedEpisode,
-                  source: _viewModel.source.value!,
                 ),
-                ChunkSelector(
-                  context,
-                  chunks,
-                  selectedChunkIndex,
-                  _viewModel.reversed,
-                ),
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Obx(() {
-                    var reversed = _viewModel.reversed.value
-                        ? chunks
-                            .map((element) => element.reversed.toList())
-                            .toList()
-                        : chunks;
-                    return EpisodeAdaptor(
-                      type: _viewModel.viewType.value,
-                      source: _viewModel.source.value!,
-                      episodeList: reversed[selectedChunkIndex.value],
-                      mediaData: widget.mediaData,
-                    );
-                  }),
-                )
               ],
             );
-          },
-        ),
+          }
+
+          updateEpisodeDetails(episodeMap);
+
+          final (chunks, initChunkIndex) = buildChunks(
+            context,
+            episodeMap,
+            widget.mediaData.userProgress.toString(),
+          );
+
+          final selectedEpisode = episodeMap.values.firstWhereOrNull(
+            (e) =>
+                e.episodeNumber ==
+                ((widget.mediaData.userProgress ?? 0) + 1).toString(),
+          );
+
+          RxInt selectedChunkIndex = (-1).obs;
+          selectedChunkIndex = selectedChunkIndex.value == -1
+              ? initChunkIndex
+              : selectedChunkIndex;
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ContinueCard(
+                mediaData: widget.mediaData,
+                episode: selectedEpisode,
+                source: _viewModel.source.value!,
+              ),
+              ChunkSelector(
+                context,
+                chunks,
+                selectedChunkIndex,
+                _viewModel.reversed,
+              ),
+              // Existing visual adaptor
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 18),
+                child: Obx(() {
+                  final chunkSets = _viewModel.reversed.value
+                      ? chunks.map((e) => e.reversed.toList()).toList()
+                      : chunks;
+                  return EpisodeAdaptor(
+                    type: _viewModel.viewType.value,
+                    source: _viewModel.source.value!,
+                    episodeList: chunkSets[selectedChunkIndex.value],
+                    mediaData: widget.mediaData,
+                  );
+                }),
+              ),
+              const SizedBox(height: 12),
+              // ⬇️ New: per-episode Download list (non-scrollable)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18.0),
+                child: Text(
+                  'Downloads',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ),
+              Obx(() {
+                final chunkSets = _viewModel.reversed.value
+                    ? chunks.map((e) => e.reversed.toList()).toList()
+                    : chunks;
+
+                final current = chunkSets[selectedChunkIndex.value];
+
+                // Use a non-scrollable ListView so it nests safely in Column
+                return ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  itemCount: current.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final ep = current[i];
+                    final title = 'Episode ${ep.episodeNumber}'
+                        '${(ep.name != null && ep.name!.isNotEmpty) ? ' — ${ep.name}' : ''}';
+
+                    return ListTile(
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 10),
+                      title: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: IconButton(
+                        tooltip: 'Download',
+                        icon: const Icon(Icons.download_rounded),
+                        onPressed: () {
+                          final url = ep.url ?? '';
+                          if (url.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content:
+                                      Text('No stream URL for this episode')),
+                            );
+                            return;
+                          }
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DownloadPage(primaryUrl: url),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                );
+              }),
+            ],
+          );
+        }),
       ],
     );
   }
@@ -165,6 +236,7 @@ class AnimeWatchScreenState extends BaseWatchScreen<AnimeWatchScreen> {
         _viewModel.fillerEpisodesList.value;
     widget.mediaData.anime?.kitsuEpisodes = _viewModel.kitsuEpisodeList.value;
     widget.mediaData.anime?.anifyEpisodes = _viewModel.anifyEpisodeList.value;
+
     episodeList.forEach((number, episode) {
       episode.name = _viewModel.anifyEpisodeList.value?[number]?.name ??
           _viewModel.kitsuEpisodeList.value?[number]?.name ??

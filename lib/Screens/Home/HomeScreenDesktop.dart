@@ -86,7 +86,7 @@ class HomeScreenDesktopState extends State<HomeScreenDesktop> {
                 children: [
                   if (!themeNotifier.useGlassMode) _buildBackgroundImage,
                   _buildUserInfo,
-                  _buildCards,
+                  _buildCards, // 👈 downloads included
                 ],
               );
             }),
@@ -232,6 +232,17 @@ class HomeScreenDesktopState extends State<HomeScreenDesktop> {
                   MediaListScreen(
                     anime: false,
                     id: data.userid ?? 0,
+                  ),
+                ),
+              ),
+              MediaCard(
+                context,
+                "DOWNLOADS", // 👈 New card
+                "https://cdn-icons-png.flaticon.com/512/833/833524.png",
+                onTap: () => navigateToPage(
+                  context,
+                  const DownloadPage(
+                    primaryUrl: "https://example.com/file.mp4",
                   ),
                 ),
               ),

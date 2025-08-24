@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <application
@@ -19,6 +20,11 @@
         android:label="Dartotsu"
         android:requestLegacyExternalStorage="true"
         android:roundIcon="@mipmap/ic_launcher_round">
+         <provider
+        android:name="vn.hunghd.flutterdownloader.DownloadedFileProvider"
+        android:authorities="${applicationId}.flutter_downloader.provider"
+        android:exported="false"
+        android:grantUriPermissions="true"/>
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
