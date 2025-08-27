@@ -123,8 +123,4 @@ enum Direction {
   }
 }
 
-enum DualPageMode {
-  Auto,
-  Single,
-  ForcedDouble,
-}
+enum DualPageMode { Auto, Single, ForcedDouble }

@@ -3,8 +3,10 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:dartotsu/Functions/Extensions.dart';
-import 'package:dartotsu/Preferences/IsarDataClasses/DefaultPlayerSettings/DefaultPlayerSettings.dart';
+import 'package:dartotsu/Preferences/ObjectBox/DefaultPlayerSettings.dart';
+import 'package:dartotsu/Preferences/ObjectBox/MediaSettings.dart' as obx;
 import 'package:dartotsu/Preferences/PrefManager.dart';
+import 'package:dartotsu/Preferences/Preferences.dart';
 import 'package:dartotsu/Theme/LanguageSwitcher.dart';
 import 'package:dartotsu_extension_bridge/dartotsu_extension_bridge.dart';
 import 'package:flutter/material.dart';
@@ -51,28 +53,48 @@ class MediaPlayerState extends State<MediaPlayer>
     with TickerProviderStateMixin {
   late BasePlayer videoPlayerController;
   late v.Video currentQuality;
-  late Rx<BoxFit> resizeMode;
+  late Rx<BoxFit> resizeMode; // reactive fit used by WindowsPlayer
   late PlayerSettings settings;
   late AnimationController _leftAnimationController;
   late AnimationController _rightAnimationController;
+
   var showControls = true.obs;
   var viewType = 0.obs;
   var reverse = false.obs;
   var showEpisodes = false.obs;
   var isMobile = Platform.isAndroid || Platform.isIOS;
+
+  // Single field focus node; do not shadow it with a local variable in initState
   final focusNode = FocusNode();
+
+  Timer? _hideCursorTimer;
 
   @override
   void initState() {
     super.initState();
-    focusNode.requestFocus();
+
+    // initialize focus before requesting it
+    focusNode
+        .requestFocus(); // ensure it’s assigned & in scope before use [definitely_unassigned_late_local_variable fix] [3]
+
+    isMobile = Platform.isAndroid || Platform.isIOS;
+
+    showControls = true.obs;
+    showEpisodes = false.obs;
+
+    // Load settings and prepare resizeMode
     if (!widget.isOffline) {
       _loadPlayerSettings();
     } else {
-      resizeMode = BoxFit.contain.obs;
-      settings = widget.media.settings.playerSettings;
+      // Offline fallback: defaults
+      settings = PlayerSettings();
+      resizeMode = Rx<BoxFit>(
+        BoxFit.contain,
+      ); // Map<int,BoxFit> is not Rx; use Rx here [10]
     }
+
     _initializePlayer();
+
     _leftAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
@@ -81,13 +103,12 @@ class MediaPlayerState extends State<MediaPlayer>
       duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
+
     if (isMobile) {
       _setLandscapeMode(true);
       _handleVolumeAndBrightness();
     }
   }
-
-  Timer? _hideCursorTimer;
 
   void _onMouseMoved() {
     if (!showControls.value) showControls.value = true;
@@ -97,23 +118,58 @@ class MediaPlayerState extends State<MediaPlayer>
     });
   }
 
+  void _onUserInteraction() => _onMouseMoved();
+
+  // Map<int, BoxFit> available somewhere globally; derive reactive fit from it
+  BoxFit _fitFromIndex(int idx) {
+    // Replace this map with your actual mapping if available
+    const localMap = <int, BoxFit>{
+      0: BoxFit.contain,
+      1: BoxFit.cover,
+      2: BoxFit.fill,
+    };
+    return localMap[idx] ?? BoxFit.contain;
+  }
+
   void _initializePlayer() {
     currentQuality = widget.videos[widget.index];
-    videoPlayerController = WindowsPlayer(resizeMode, settings);
-    var sourceName = context.currentService(listen: false).getName;
-    var currentProgress = loadCustomData<int>(
-      "${widget.media.id}-${widget.currentEpisode.episodeNumber}-$sourceName-current",
+
+    // Pass Rx<BoxFit>, not a Map; WindowsPlayer expects Rx<BoxFit>
+    videoPlayerController = WindowsPlayer(
+      resizeMode,
+      settings,
+    ); // fixed type [6]
+
+    final sourceName = Get.context!.currentService(listen: false).getName;
+
+    final currentProgress = PrefManager.getCustomVal<int>(
+      '${widget.media.id}-${widget.currentEpisode.number}-$sourceName-current',
     );
+
     videoPlayerController.open(
-        currentQuality, Duration(seconds: currentProgress ?? 0));
-    _onMouseMoved();
+      currentQuality,
+      Duration(seconds: currentProgress ?? 0),
+    );
+
+    _onUserInteraction();
   }
 
   void _loadPlayerSettings() {
-    settings = widget.media.settings.playerSettings;
-    resizeMode = (resizeMap[settings.resizeMode] ?? BoxFit.contain).obs;
-    viewType = widget.media.settings.viewType.obs;
-    reverse = widget.media.settings.isReverse.obs;
+    // Ensure the Media.settings is the ObjectBox version
+    final obx.MediaSettings ms =
+        widget.media.settings
+            as obx.MediaSettings; // make sure Media imports ObjectBox type
+
+    // ToOne relation -> .target
+    final ps = ms.playerSettings.target ?? PlayerSettings();
+    settings = ps;
+
+    // Build reactive fit from integer resizeMode using your fit map
+    resizeMode = Rx<BoxFit>(_fitFromIndex(settings.resizeMode));
+
+    // Read layout flags from the same MediaSettings object
+    viewType.value = ms.viewType;
+    reverse.value = ms.isReverse;
   }
 
   @override
@@ -125,8 +181,9 @@ class MediaPlayerState extends State<MediaPlayer>
     _rightAnimationController.dispose();
     focusNode.dispose();
     if (Platform.isAndroid || Platform.isIOS) {
-      ScreenBrightness.instance
-          .setApplicationScreenBrightness(_defaultBrightness);
+      ScreenBrightness.instance.setApplicationScreenBrightness(
+        _defaultBrightness,
+      );
       _setLandscapeMode(false);
     }
     updateProgress();
@@ -134,39 +191,47 @@ class MediaPlayerState extends State<MediaPlayer>
 
   void _setLandscapeMode(bool state) {
     if (state) {
-      SystemChrome.setPreferredOrientations(
-          [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     } else {
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
         DeviceOrientation.portraitDown,
         DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight
+        DeviceOrientation.landscapeRight,
       ]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
   }
 
   void updateProgress() {
-    var current = _timeStringToSeconds(videoPlayerController.currentTime.value);
-    var total = _timeStringToSeconds(videoPlayerController.maxTime.value);
-    var episodeEnd = (current / total) > 0.8;
-    var incognito = loadData(PrefName.incognito);
+    final current = _timeStringToSeconds(
+      videoPlayerController.currentTime.value,
+    );
+    final total = _timeStringToSeconds(videoPlayerController.maxTime.value);
+    final episodeEnd = total > 0 ? (current / total) > 0.8 : false;
+    final incognito = PrefManager.getVal(PrefName.incognito) as bool? ?? false;
     if (incognito || !episodeEnd) return;
     if (widget.isOffline) return;
 
-    var service = Get.context!.currentService(listen: false);
-    var saveProgress = loadCustomData<bool>(
-            "${widget.media.id}-${service.getName}-saveProgress") ??
+    final sourceName = Get.context!.currentService(listen: false).getName;
+
+    final service = Get.context!.currentService(listen: false);
+    final saveProgress =
+        PrefManager.getCustomVal<bool>(
+          '${widget.media.id}-$sourceName-saveProgress',
+        ) ??
         true;
     if (saveProgress) {
-      service.data.mutations
-          ?.setProgress(widget.media, widget.currentEpisode.episodeNumber);
+      service.data.mutations?.setProgress(
+        widget.media,
+        widget.currentEpisode.episodeNumber,
+      );
     }
   }
-
-  double? episodePanelWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -176,50 +241,52 @@ class MediaPlayerState extends State<MediaPlayer>
           const double minWidth = 250;
           final double availableWidth = constraints.maxWidth;
 
-          episodePanelWidth ??=
-              (availableWidth / 3).clamp(minWidth, availableWidth);
+          episodePanelWidth ??= (availableWidth / 3).clamp(
+            minWidth,
+            availableWidth,
+          );
 
           return StatefulBuilder(
             builder: (context, setState) {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Obx(
-                    () {
-                      return MouseRegion(
-                        onHover: (_) => _onMouseMoved(),
-                        cursor: showControls.value
-                            ? SystemMouseCursors.basic
-                            : SystemMouseCursors.none,
-                        child: _buildVideoPlayer(
-                            availableWidth, episodePanelWidth!),
-                      );
-                    },
-                  ),
-                  Obx(
-                    () {
-                      if (!showEpisodes.value) {
-                        return const SizedBox();
-                      }
-                      return GestureDetector(
-                        onHorizontalDragUpdate: (details) {
-                          setState(
-                            () => episodePanelWidth =
-                                (episodePanelWidth! - details.delta.dx)
-                                    .clamp(minWidth, availableWidth),
-                          );
-                        },
-                        child: SizedBox(
-                          width: episodePanelWidth,
-                          height: constraints.maxHeight,
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(8.0),
-                            child: _buildEpisodeList(),
-                          ),
+                  Obx(() {
+                    return MouseRegion(
+                      onHover: (_) => _onMouseMoved(),
+                      cursor: showControls.value
+                          ? SystemMouseCursors.basic
+                          : SystemMouseCursors.none,
+                      child: _buildVideoPlayer(
+                        availableWidth,
+                        episodePanelWidth!,
+                      ),
+                    );
+                  }),
+                  Obx(() {
+                    if (!showEpisodes.value) {
+                      return const SizedBox();
+                    }
+                    return GestureDetector(
+                      onHorizontalDragUpdate: (details) {
+                        setState(
+                          () => episodePanelWidth =
+                              (episodePanelWidth! - details.delta.dx).clamp(
+                                minWidth,
+                                availableWidth,
+                              ),
+                        );
+                      },
+                      child: SizedBox(
+                        width: episodePanelWidth,
+                        height: constraints.maxHeight,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(8.0),
+                          child: _buildEpisodeList(),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  }),
                 ],
               );
             },
@@ -228,6 +295,8 @@ class MediaPlayerState extends State<MediaPlayer>
       ),
     );
   }
+
+  double? episodePanelWidth;
 
   Widget _buildVideoPlayer(double availableWidth, double episodePanelWidth) {
     return Obx(() {
@@ -344,14 +413,14 @@ class MediaPlayerState extends State<MediaPlayer>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
-                  color: videoPlayerController.subtitle[0].isEmpty
+                  color: videoPlayerController.subtitle.isEmpty
                       ? Colors.transparent
-                      : Color(
-                          settings.subtitleBackgroundColor,
-                        ),
+                      : Color(settings.subtitleBackgroundColor),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -390,8 +459,8 @@ class MediaPlayerState extends State<MediaPlayer>
           opacity: showControls.value
               ? 1
               : Platform.isLinux
-                  ? 0.01
-                  : 0.0,
+              ? 0.01
+              : 0.0,
           duration: const Duration(milliseconds: 300),
           child: IgnorePointer(
             ignoring: !showControls.value,
@@ -525,9 +594,7 @@ class MediaPlayerState extends State<MediaPlayer>
         );
       } else {
         videoPlayerController.seek(
-          Duration(
-            seconds: currentPosition.inSeconds + skipDuration.value,
-          ),
+          Duration(seconds: currentPosition.inSeconds + skipDuration.value),
         );
       }
       _leftAnimationController.stop();
@@ -564,7 +631,8 @@ class MediaPlayerState extends State<MediaPlayer>
           return GestureDetector(
             onDoubleTapDown: (t) => _handleDoubleTap(t),
             child: Opacity(
-              opacity: 1.0 -
+              opacity:
+                  1.0 -
                   (isLeftSide.value
                       ? _leftAnimationController.value
                       : _rightAnimationController.value),
@@ -618,13 +686,17 @@ class MediaPlayerState extends State<MediaPlayer>
   }
 
   Widget _buildEpisodeList() {
-    var episodeList = widget.media.anime?.episodes ?? {};
-    var (chunk, initChunkIndex) =
-        buildChunks(context, episodeList, widget.media.userProgress.toString());
+    final episodeList = widget.media.anime?.episodes ?? {};
+    final (chunk, initChunkIndex) = buildChunks(
+      context,
+      episodeList,
+      widget.media.userProgress.toString(),
+    );
 
     RxInt selectedChunkIndex = (-1).obs;
-    selectedChunkIndex =
-        selectedChunkIndex.value == -1 ? initChunkIndex : selectedChunkIndex;
+    selectedChunkIndex = selectedChunkIndex.value == -1
+        ? initChunkIndex
+        : selectedChunkIndex;
 
     return ScrollConfig(
       context,
@@ -634,26 +706,19 @@ class MediaPlayerState extends State<MediaPlayer>
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
           _buildTitle(),
-          ChunkSelector(
-            context,
-            chunk,
-            selectedChunkIndex,
-            reverse,
-          ),
-          Obx(
-            () {
-              var reversed = reverse.value
-                  ? chunk.map((element) => element.reversed.toList()).toList()
-                  : chunk;
-              return EpisodeAdaptor(
-                type: viewType.value,
-                source: widget.source,
-                episodeList: reversed[selectedChunkIndex.value],
-                mediaData: widget.media,
-                onEpisodeClick: () => Get.back(),
-              );
-            },
-          ),
+          ChunkSelector(context, chunk, selectedChunkIndex, reverse),
+          Obx(() {
+            final reversed = reverse.value
+                ? chunk.map((element) => element.reversed.toList()).toList()
+                : chunk;
+            return EpisodeAdaptor(
+              type: viewType.value,
+              source: widget.source,
+              episodeList: reversed[selectedChunkIndex.value],
+              mediaData: widget.media,
+              onEpisodeClick: () => Get.back(),
+            );
+          }),
         ],
       ),
     );
@@ -687,15 +752,11 @@ class MediaPlayerState extends State<MediaPlayer>
     );
   }
 
-  void settingsDialog() => AnimeCompactSettings(
-        context,
-        widget.media,
-        widget.source,
-        (i) {
-          viewType.value = i.viewType;
-          reverse.value = i.isReverse;
-        },
-      ).showDialog();
+  void settingsDialog() =>
+      AnimeCompactSettings(context, widget.media, widget.source, (i) {
+        viewType.value = i.viewType;
+        reverse.value = i.isReverse;
+      }).showDialog();
 
   void _handleKeyPress(KeyEvent event) {
     if (event is KeyDownEvent) {
@@ -708,18 +769,17 @@ class MediaPlayerState extends State<MediaPlayer>
       } else if (event.logicalKey == LogicalKeyboardKey.enter) {
         showEpisodes.value = !showEpisodes.value;
       } else if (RegExp(r'^[0-9]$').hasMatch(event.logicalKey.keyLabel)) {
-        var keyNumber = int.parse(event.logicalKey.keyLabel);
+        final keyNumber = int.parse(event.logicalKey.keyLabel);
 
-        var videoDurationSeconds =
-            _timeStringToSeconds(videoPlayerController.maxTime.value);
-        var targetSeconds = (keyNumber / 10) * videoDurationSeconds;
+        final videoDurationSeconds = _timeStringToSeconds(
+          videoPlayerController.maxTime.value,
+        );
+        double targetSeconds = (keyNumber / 10) * videoDurationSeconds;
 
         if (keyNumber == 1) {
           targetSeconds = 0;
         } else if (keyNumber == 0) {
           targetSeconds = videoDurationSeconds.toDouble();
-        } else {
-          targetSeconds = (keyNumber / 10) * videoDurationSeconds;
         }
 
         videoPlayerController.seek(Duration(seconds: targetSeconds.toInt()));
@@ -729,9 +789,9 @@ class MediaPlayerState extends State<MediaPlayer>
 
   int _timeStringToSeconds(String time) {
     final parts = time.split(':').map(int.parse).toList();
-    if (parts.length == 2) return parts[0] * 60 + parts[1];
+    if (parts.length == 2) return parts * 60 + parts[11];
     if (parts.length == 3) {
-      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      return parts * 3600 + parts[11] * 60 + parts;
     }
     return 0;
   }

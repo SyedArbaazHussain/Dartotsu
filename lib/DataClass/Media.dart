@@ -1,9 +1,9 @@
 import 'dart:math';
 
 import 'package:dartotsu/Functions/string_extensions.dart';
-import 'package:dartotsu/Preferences/IsarDataClasses/MediaSettings/MediaSettings.dart';
 import 'package:dartotsu_extension_bridge/dartotsu_extension_bridge.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:objectbox/objectbox.dart';
 
 import '../Api/Anilist/Data/fuzzyData.dart';
 import '../Api/Anilist/Data/media.dart' as anilistApi;
@@ -17,14 +17,21 @@ import 'Author.dart';
 import 'Character.dart';
 import 'Manga.dart';
 import 'User.dart';
+import 'MediaSettings.dart';
 
 part 'Data/Media.g.dart';
-
 part 'Media/AnilistMedia.dart';
-
 part 'Media/MalMedia.dart';
-
 part 'Media/SimklMedia.dart';
+
+@Entity()
+class CustomMediaData {
+  int id;
+  String key;
+  int value;
+
+  CustomMediaData({this.id = 0, required this.key, required this.value});
+}
 
 class MediaMapWrapper {
   final Map<String, List<Media>> mediaMap;
@@ -33,14 +40,20 @@ class MediaMapWrapper {
 
   factory MediaMapWrapper.fromJson(Map<String, dynamic> json) {
     return MediaMapWrapper(
-      mediaMap: json.map((key, value) => MapEntry(
-          key, (value as List).map((e) => Media.fromJson(e)).toList())),
+      mediaMap: json.map(
+        (key, value) => MapEntry(
+          key,
+          (value as List).map((e) => Media.fromJson(e)).toList(),
+        ),
+      ),
     );
   }
 
   Map<String, dynamic> toJson() {
-    return mediaMap.map((key, value) =>
-        MapEntry(key, value.map((media) => media.toJson()).toList()));
+    return mediaMap.map(
+      (key, value) =>
+          MapEntry(key, value.map((media) => media.toJson()).toList()),
+    );
   }
 }
 
@@ -192,7 +205,7 @@ class Media {
 
   String mangaName() => countryOfOrigin == 'JP' ? mainName() : nameRomaji;
 
-  //Anilist
+  // Anilist
   factory Media.mediaData(anilistApi.Media apiMedia) => _mediaData(apiMedia);
 
   factory Media.mediaEdgeData(anilistApi.MediaEdge apiMediaEdge) =>
@@ -201,10 +214,10 @@ class Media {
   factory Media.mediaListData(anilistApi.MediaList mediaList) =>
       _mediaListData(mediaList);
 
-  //MyAnimeList
+  // MyAnimeList
   factory Media.fromMal(malApi.Media apiMedia) => _fromMal(apiMedia);
 
-  //Simkl
+  // Simkl
   factory Media.fromSimklAnime(simklApi.Anime apiMedia) =>
       _fromSimklAnime(apiMedia);
 
@@ -216,28 +229,25 @@ class Media {
 
   factory Media.skeleton() {
     final random = Random();
-    final values = {
-      'userScore': 26,
-      'meanScore': 32,
-      'userProgress': 100,
-    };
+    final values = {'userScore': 26, 'meanScore': 32, 'userProgress': 100};
 
     final keys = values.keys.toList()..shuffle(random);
     final keepCount = random.nextInt(values.length + 1);
-
     final keptKeys = keys.take(keepCount).toSet();
 
     return Media(
       id: 0,
       nameRomaji: '',
       userPreferredName: 'dsfgdgf',
-      genres: ["ergsdf","fsdf","ergsdf","fsdf"],
+      genres: ["ergsdf", "fsdf", "ergsdf", "fsdf"],
       status: "who knows",
       isAdult: false,
-      userScore:
-          keptKeys.contains('userScore') ? values['userScore'] as int : 0,
-      meanScore:
-          keptKeys.contains('meanScore') ? values['meanScore'] as int : null,
+      userScore: keptKeys.contains('userScore')
+          ? values['userScore'] as int
+          : 0,
+      meanScore: keptKeys.contains('meanScore')
+          ? values['meanScore'] as int
+          : null,
       userProgress: keptKeys.contains('userProgress')
           ? values['userProgress'] as int
           : null,
@@ -254,15 +264,24 @@ class Media {
   }
 }
 
+/// ObjectBox version for Pages -> Media conversion
 extension M on Pages {
   List<Media> toMedia({bool isAnime = false, Source? source}) {
     return list.map((e) {
-      var id = loadCustomData<int>('${source?.name}-${e.url}');
-      if (id == null) {
-        var hash = e.hashCode;
-        saveCustomData('${source?.name}-${e.url}', hash);
-        id = hash;
+      final key = '${source?.name}-${e.url}';
+      var storedData = objectBox.customMediaBox
+          .query(CustomMediaData_.key.equals(key))
+          .build()
+          .findFirst();
+
+      int id;
+      if (storedData == null) {
+        id = e.hashCode;
+        objectBox.customMediaBox.put(CustomMediaData(key: key, value: id));
+      } else {
+        id = storedData.value;
       }
+
       return Media(
         id: id,
         name: e.title,

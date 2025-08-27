@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:dartotsu/DataClass/Media.dart' as media;
 import 'package:dartotsu/DataClass/SearchResults.dart';
 import 'package:dartotsu/Preferences/PrefManager.dart';
+import 'package:dartotsu/Preferences/Preferences.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../Services/Api/Queries.dart';

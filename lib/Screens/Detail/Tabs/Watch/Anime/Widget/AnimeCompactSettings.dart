@@ -1,4 +1,4 @@
-import 'package:dartotsu/Preferences/IsarDataClasses/MediaSettings/MediaSettings.dart';
+import 'package:dartotsu/Preferences/ObjectBox/MediaSettings.dart';
 import 'package:dartotsu/Theme/LanguageSwitcher.dart';
 import 'package:dartotsu/Widgets/AlertDialogBuilder.dart';
 import 'package:dartotsu_extension_bridge/dartotsu_extension_bridge.dart';
@@ -18,7 +18,7 @@ class AnimeCompactSettings {
   final ColorScheme theme;
 
   AnimeCompactSettings(this.context, this.media, this.source, this.onFinished)
-      : theme = Theme.of(context).colorScheme;
+    : theme = Theme.of(context).colorScheme;
 
   late MediaSettings settings;
 
@@ -26,7 +26,8 @@ class AnimeCompactSettings {
   var reverse = false.obs;
 
   void get _initialiseSettings {
-    settings = media.settings;
+    settings = (media.settings as dynamic) as MediaSettings;
+
     viewType.value = settings.viewType;
     reverse.value = settings.isReverse;
   }
@@ -48,14 +49,8 @@ class AnimeCompactSettings {
           ],
         ),
       )
-      ..setPositiveButton(
-        getString.ok,
-        () => onFinished(settings),
-      )
-      ..setNegativeButton(
-        getString.cancel,
-        () {},
-      )
+      ..setPositiveButton(getString.ok, () => onFinished(settings))
+      ..setNegativeButton(getString.cancel, () {})
       ..show();
   }
 
@@ -71,46 +66,41 @@ class AnimeCompactSettings {
       getString.compactView,
     ];
 
-    return Obx(
-      () {
-        final currentViewType = viewType.value;
-        return Row(
-          children: [
-            _buildInfo(getString.layout, descriptions[currentViewType]),
-            Row(
-              children: List.generate(
-                icons.length,
-                (index) {
-                  final isSelected = currentViewType == index;
-                  return Padding(
-                    padding: const EdgeInsets.only(left: 10),
-                    child: IconButton(
-                      icon: Transform(
-                        alignment: Alignment.center,
-                        transform: index == 0
-                            ? Matrix4.rotationY(3.14159)
-                            : Matrix4.identity(),
-                        child: Icon(icons[index]),
-                      ),
-                      iconSize: 24,
-                      color: isSelected
-                          ? theme.onSurface
-                          : theme.onSurface.withOpacity(0.33),
-                      onPressed: () {
-                        if (!isSelected) {
-                          settings.viewType = index;
-                          viewType.value = index;
-                        }
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    return Obx(() {
+      final currentViewType = viewType.value;
+      return Row(
+        children: [
+          _buildInfo(getString.layout, descriptions[currentViewType]),
+          Row(
+            children: List.generate(icons.length, (index) {
+              final isSelected = currentViewType == index;
+              return Padding(
+                padding: const EdgeInsets.only(left: 10),
+                child: IconButton(
+                  icon: Transform(
+                    alignment: Alignment.center,
+                    transform: index == 0
+                        ? Matrix4.rotationY(3.14159)
+                        : Matrix4.identity(),
+                    child: Icon(icons[index]),
+                  ),
+                  iconSize: 24,
+                  color: isSelected
+                      ? theme.onSurface
+                      : theme.onSurface.withOpacity(0.33),
+                  onPressed: () {
+                    if (!isSelected) {
+                      settings.viewType = index;
+                      viewType.value = index;
+                    }
+                  },
+                ),
+              );
+            }),
+          ),
+        ],
+      );
+    });
   }
 
   Widget _buildSortSettings() {
@@ -118,31 +108,23 @@ class AnimeCompactSettings {
       Icons.keyboard_arrow_up_rounded,
       Icons.keyboard_arrow_down_rounded,
     ];
-    final descriptions = [
-      getString.utd,
-      getString.dtu,
-    ];
+    final descriptions = [getString.utd, getString.dtu];
 
-    return Obx(
-      () {
-        final currentSortType = reverse.value;
-        return Row(
-          children: [
-            _buildInfo(getString.sort, descriptions[currentSortType ? 1 : 0]),
-            IconButton(
-              onPressed: () {
-                reverse.value = !reverse.value;
-                settings.isReverse = reverse.value;
-              },
-              icon: Icon(
-                icons[currentSortType ? 1 : 0],
-                size: 24,
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    return Obx(() {
+      final currentSortType = reverse.value;
+      return Row(
+        children: [
+          _buildInfo(getString.sort, descriptions[currentSortType ? 1 : 0]),
+          IconButton(
+            onPressed: () {
+              reverse.value = !reverse.value;
+              settings.isReverse = reverse.value;
+            },
+            icon: Icon(icons[currentSortType ? 1 : 0], size: 24),
+          ),
+        ],
+      );
+    });
   }
 
   Widget _buildInfo(String title, String description) {
@@ -186,10 +168,7 @@ class AnimeCompactSettings {
             context,
             MangaWebView(url: source!.baseUrl!, title: ''),
           ),
-          icon: const Icon(
-            Icons.open_in_new_rounded,
-            size: 24,
-          ),
+          icon: const Icon(Icons.open_in_new_rounded, size: 24),
         ),
       ],
     );

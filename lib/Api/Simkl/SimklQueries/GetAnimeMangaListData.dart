@@ -9,7 +9,7 @@ extension on SimklQueries {
       'Airing':
           'https://api.simkl.com/anime/airing?date?sort=time&client_id=${SimklLogin.clientId}',
     };
-    final animeLayoutMap = loadData(PrefName.simklAnimeLayout);
+    final animeLayoutMap = PrefManager.getVal(PrefName.simklAnimeLayout);
 
     Map<String, String> generate = Map.fromEntries(
       urls.entries.where((entry) => animeLayoutMap[entry.key] == true),
@@ -22,18 +22,12 @@ extension on SimklQueries {
           'https://api.simkl.com/anime/genres/all/all-types/all-countries/all-years?client_id=${SimklLogin.clientId}',
     });
     final results = await Future.wait(
-      generate.entries.map(
-        (entry) async {
-          return MapEntry(
-            entry.key,
-            await _loadCache(
-              entry.value,
-              'anime',
-              entry.key,
-            ),
-          );
-        },
-      ),
+      generate.entries.map((entry) async {
+        return MapEntry(
+          entry.key,
+          await _loadCache(entry.value, 'anime', entry.key),
+        );
+      }),
     );
 
     list.addEntries(results);
@@ -48,7 +42,7 @@ extension on SimklQueries {
       'Airing Shows':
           'https://api.simkl.com/tv/airing?date?sort=time&client_id=${SimklLogin.clientId}',
     };
-    final mangaLayoutMap = loadData(PrefName.simklMangaLayout);
+    final mangaLayoutMap = PrefManager.getVal(PrefName.simklMangaLayout);
 
     Map<String, String> generate = Map.fromEntries(
       urls.entries.where((entry) => mangaLayoutMap[entry.key] == true),
@@ -61,36 +55,39 @@ extension on SimklQueries {
           'https://api.simkl.com/movies/genres/all/all-types/all-countries/all-years?client_id=${SimklLogin.clientId}',
     });
     final results = await Future.wait(
-      generate.entries.map(
-        (entry) async {
-          return MapEntry(
+      generate.entries.map((entry) async {
+        return MapEntry(
+          entry.key,
+          await _loadCache(
+            entry.value,
+            entry.key == 'trendingMovies' || entry.key == 'popularMovies'
+                ? 'movies'
+                : 'shows',
             entry.key,
-            await _loadCache(
-              entry.value,
-              entry.key == 'trendingMovies' || entry.key == 'popularMovies'
-                  ? 'movies'
-                  : 'shows',
-              entry.key,
-            ),
-          );
-        },
-      ),
+          ),
+        );
+      }),
     );
 
     list.addEntries(results);
     return list;
   }
 
-  Future<List<media.Media>> updateDataFromLocal(
-    Media m,
-    String type,
-  ) async {
+  Future<List<Media>> updateDataFromLocal(Media m, String type) async {
     var med = await precessMedia(m, type);
-    final localData = loadCustomData<String?>('simklUserAnimeList');
+
+    final String? localData = PrefManager.getCustomVal<String>(
+      'simklUserAnimeList',
+    );
+
     if (localData == null) return med;
-    var media = Media.fromJson(jsonDecode(localData));
-    if (media.anime?.isEmpty ?? true) return med;
-    final localList = await precessMedia(media, type);
+
+    final parsed = Media.fromJson(jsonDecode(localData));
+
+    if (parsed.anime?.isEmpty ?? true) return med;
+
+    final localList = await precessMedia(parsed, type);
+
     for (final localMedia in localList) {
       for (final existingMedia in med) {
         if (existingMedia.id == localMedia.id) {
@@ -103,6 +100,7 @@ extension on SimklQueries {
         }
       }
     }
+
     return med;
   }
 
@@ -110,8 +108,8 @@ extension on SimklQueries {
     return type == 'anime'
         ? await processMediaResponse(m)
         : type == 'movies'
-            ? await processMovieResponse(m)
-            : await processShowsResponse(m);
+        ? await processMovieResponse(m)
+        : await processShowsResponse(m);
   }
 
   Future<List<media.Media>> _loadCache(
@@ -119,31 +117,23 @@ extension on SimklQueries {
     String mapKey,
     String key,
   ) async {
-    final localData = loadCustomData<String?>('simkl${key}List');
-    var time = loadCustomData<int>('simkl${key}time');
-    bool checkTime() {
-      if (time == null) return true;
-      return DateTime.now()
-              .difference(DateTime.fromMillisecondsSinceEpoch(time))
-              .inDays >
-          1;
-    }
-
+    final localData = PrefManager.getCustomVal<String>('simkl${key}List');
+    final time = PrefManager.getCustomVal<int>('simkl${key}time');
     if (localData == null || checkTime()) {
       final response = await executeQuery<Media>(query, mapKey: mapKey);
-      saveCustomData('simkl${key}List', jsonEncode(response));
-      saveCustomData('simkl${key}time', DateTime.now().millisecondsSinceEpoch);
+      PrefManager.setCustomVal('simkl${key}List', jsonEncode(response));
+      PrefManager.setCustomVal(
+        'simkl${key}time',
+        DateTime.now().millisecondsSinceEpoch,
+      );
       if (response == null) return [];
       return await updateDataFromLocal(response, mapKey);
     }
-    var media = Media.fromJson(jsonDecode(localData));
-    return await updateDataFromLocal(media, mapKey);
+    final parsed = Media.fromJson(jsonDecode(localData));
+    return await updateDataFromLocal(parsed, mapKey); 
   }
 
-  Future<List<media.Media>> _getTrending(
-    String type, {
-    String? time,
-  }) async {
+  Future<List<media.Media>> getTrending(String type, {String? time}) async {
     Media? updaterShowList;
     if (type != 'anime') {
       updaterShowList = await executeQuery<Media>(
@@ -161,7 +151,7 @@ extension on SimklQueries {
     return await updateDataFromLocal(updaterShowList, type);
   }
 
-  Future<List<media.Media>> _loadNextPage(String type, int page) async {
+  Future<List<media.Media>> loadNextPage(String type, int page) async {
     var updaterShowList = await executeQuery<Media>(
       'https://api.simkl.com/$type/genres/all/all-types/all-countries/all-years?client_id=${SimklLogin.clientId}&page=$page',
       mapKey: type,

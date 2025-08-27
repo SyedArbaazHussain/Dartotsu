@@ -10,10 +10,15 @@ Widget handleProgress({
   required dynamic ep,
   required double width,
 }) {
-  var sourceName =
-      Provider.of<MediaServiceProvider>(context).currentService.getName;
-  var currentProgress = loadCustomData<int>("$mediaId-$ep-$sourceName-current");
-  var maxProgress = loadCustomData<int>("$mediaId-$ep-$sourceName-max");
+  var sourceName = Provider.of<MediaServiceProvider>(
+    context,
+  ).currentService.getName;
+  var currentProgress = PrefManager.getCustomVal<int>(
+    "$mediaId-$ep-$sourceName-current",
+  );
+  var maxProgress = PrefManager.getCustomVal<int>(
+    "$mediaId-$ep-$sourceName-max",
+  );
   if (currentProgress == null || maxProgress == null || maxProgress == 0) {
     return const SizedBox.shrink();
   }
@@ -25,14 +30,10 @@ Widget handleProgress({
     height: 3.4,
     child: Stack(
       children: [
-        Container(
-          color: Colors.grey,
-        ),
+        Container(color: Colors.grey),
         FractionallySizedBox(
           widthFactor: progressValue,
-          child: Container(
-            color: Theme.of(context).primaryColor,
-          ),
+          child: Container(color: Theme.of(context).primaryColor),
         ),
       ],
     ),

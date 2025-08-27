@@ -11,10 +11,7 @@ part 'GetMediaIDs.g.dart';
 class GetMediaIDs {
   static List<AnimeID>? _animeListFuture;
 
-  static AnimeID? fromID({
-    required AnimeIDType type,
-    required dynamic id,
-  }) {
+  static AnimeID? fromID({required AnimeIDType type, required dynamic id}) {
     final animeList = _animeListFuture;
     final fieldName = type.fieldName;
     return animeList?.firstWhereOrNull(
@@ -41,8 +38,9 @@ class GetMediaIDs {
   }
 
   static Future<List<AnimeID>?> loadFromCache() async {
-    var data = loadCustomData<String?>('animeIDSList');
-    var time = loadCustomData<int>('animeIDSListTime');
+    var data = await PrefManager.get<String?>('animeIDSList');
+    var time = await PrefManager.get<int?>('animeIDSListTime');
+
     bool checkTime() {
       if (time == null) return true;
       return DateTime.now()
@@ -58,14 +56,17 @@ class GetMediaIDs {
       return _animeListFuture;
     } else {
       final url = Uri.parse(
-          'https://raw.githubusercontent.com/Fribb/anime-lists/refs/heads/master/anime-list-full.json');
+        'https://raw.githubusercontent.com/Fribb/anime-lists/refs/heads/master/anime-list-full.json',
+      );
       final response = await http.get(url);
       if (response.statusCode == 200) {
         List<dynamic> jsonData = jsonDecode(response.body);
         _animeListFuture = jsonData.map((e) => AnimeID.fromJson(e)).toList();
         saveCustomData('animeIDSList', response.body);
         saveCustomData(
-            'animeIDSListTime', DateTime.now().millisecondsSinceEpoch);
+          'animeIDSListTime',
+          DateTime.now().millisecondsSinceEpoch,
+        );
         loading.value = false;
         return _animeListFuture;
       } else {

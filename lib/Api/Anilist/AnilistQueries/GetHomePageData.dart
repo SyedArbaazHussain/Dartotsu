@@ -11,8 +11,11 @@ extension on AnilistQueries {
       var response = await executeQuery<UserListResponse>(_queryHomeList());
       Map<String, List<Media>> returnMap = {};
 
-      Future<void> processMedia(String type, List<api.MediaList>? currentMedia,
-          List<api.MediaList>? repeatingMedia) async {
+      Future<void> processMedia(
+        String type,
+        List<api.MediaList>? currentMedia,
+        List<api.MediaList>? repeatingMedia,
+      ) async {
         (List<Media>, List<Media>) process(Map<String, dynamic> params) {
           Map<int, Media> subMap = {};
           List<Media> returnArray = [];
@@ -31,11 +34,14 @@ extension on AnilistQueries {
           }
           var list = params["continueList"] as List<int>;
           if (list.isNotEmpty) {
-            returnArray.addAll(list.reversed
-                .where((id) => subMap.containsKey(id))
-                .map((id) => subMap[id]!));
-            returnArray
-                .addAll(subMap.values.where((m) => !returnArray.contains(m)));
+            returnArray.addAll(
+              list.reversed
+                  .where((id) => subMap.containsKey(id))
+                  .map((id) => subMap[id]!),
+            );
+            returnArray.addAll(
+              subMap.values.where((m) => !returnArray.contains(m)),
+            );
           } else {
             returnArray.addAll(subMap.values);
           }
@@ -43,13 +49,14 @@ extension on AnilistQueries {
           return (returnArray, removedMedia);
         }
 
-        List<int> list = loadCustomData<List<int>>("continue${type}List") ?? [];
+        List<int> list =
+            PrefManager.getCustomVal<List<int>>("continue${type}List") ?? [];
         var mediaList = (currentMedia ?? []) + (repeatingMedia ?? []);
         var returnArray = await compute(process, {
           "list": mediaList,
           "removeList": removeList,
           "hidePrivate": hidePrivate,
-          "continueList": list
+          "continueList": list,
         });
 
         removedMedia.addAll(returnArray.$2);
@@ -57,7 +64,9 @@ extension on AnilistQueries {
       }
 
       Future<void> processFavorites(
-          String type, List<api.MediaEdge>? favorites) async {
+        String type,
+        List<api.MediaEdge>? favorites,
+      ) async {
         (List<Media>, List<Media>) process(Map<String, dynamic> params) {
           List<Media> returnArray = [];
           List<Media> removedMedia = [];
@@ -124,54 +133,55 @@ extension on AnilistQueries {
           return list;
         }
 
-        var list = await compute(
-            process, {"list": (a ?? []) + (b ?? []), "recommended": r});
+        var list = await compute(process, {
+          "list": (a ?? []) + (b ?? []),
+          "recommended": r,
+        });
 
         returnMap["recommendations"] = list;
       }
 
       Map<String, Future<void> Function()> processMappings = {
         'Continue Watching': () => processMedia(
-              "Anime",
-              getMediaList(response?.data?.currentAnime?.lists),
-              getMediaList(response?.data?.repeatingAnime?.lists),
-            ),
+          "Anime",
+          getMediaList(response?.data?.currentAnime?.lists),
+          getMediaList(response?.data?.repeatingAnime?.lists),
+        ),
         'Favourite Anime': () => processFavorites(
-              "Anime",
-              response?.data?.favoriteAnime?.favourites?.anime?.edges,
-            ),
+          "Anime",
+          response?.data?.favoriteAnime?.favourites?.anime?.edges,
+        ),
         'Planned Anime': () => processMedia(
-              "AnimePlanned",
-              getMediaList(response?.data?.plannedAnime?.lists),
-              null,
-            ),
+          "AnimePlanned",
+          getMediaList(response?.data?.plannedAnime?.lists),
+          null,
+        ),
         'Continue Reading': () => processMedia(
-              "Manga",
-              getMediaList(response?.data?.currentManga?.lists),
-              getMediaList(response?.data?.repeatingManga?.lists),
-            ),
+          "Manga",
+          getMediaList(response?.data?.currentManga?.lists),
+          getMediaList(response?.data?.repeatingManga?.lists),
+        ),
         'Favourite Manga': () => processFavorites(
-              "Manga",
-              response?.data?.favoriteManga?.favourites?.manga?.edges,
-            ),
+          "Manga",
+          response?.data?.favoriteManga?.favourites?.manga?.edges,
+        ),
         'Planned Manga': () => processMedia(
-              "MangaPlanned",
-              getMediaList(response?.data?.plannedManga?.lists),
-              null,
-            ),
+          "MangaPlanned",
+          getMediaList(response?.data?.plannedManga?.lists),
+          null,
+        ),
         'Recommended': () => processRecommended(
-              response?.data?.recommendationQuery?.recommendations,
-              getMediaList(
-                  response?.data?.recommendationPlannedQueryAnime?.lists),
-              getMediaList(
-                  response?.data?.recommendationPlannedQueryManga?.lists),
-            ),
+          response?.data?.recommendationQuery?.recommendations,
+          getMediaList(response?.data?.recommendationPlannedQueryAnime?.lists),
+          getMediaList(response?.data?.recommendationPlannedQueryManga?.lists),
+        ),
       };
 
       await Future.wait(
         homeLayoutMap.entries
-            .where((entry) =>
-                entry.value && processMappings.containsKey(entry.key))
+            .where(
+              (entry) => entry.value && processMappings.containsKey(entry.key),
+            )
             .map((entry) => processMappings[entry.key]!()),
       );
       returnMap["hidden"] = removedMedia.toSet().toList();
@@ -187,24 +197,24 @@ String _queryHomeList() {
   final Map<String, List<String>> queryMappings = {
     'Continue Watching': [
       "currentAnime: ${_continueMediaQuery("ANIME", "CURRENT")}",
-      "repeatingAnime: ${_continueMediaQuery("ANIME", "REPEATING")}"
+      "repeatingAnime: ${_continueMediaQuery("ANIME", "REPEATING")}",
     ],
     'Favourite Anime': ["favoriteAnime: ${_favMediaQuery(true, 1)}"],
     'Planned Anime': [
-      "plannedAnime: ${_continueMediaQuery("ANIME", "PLANNING")}"
+      "plannedAnime: ${_continueMediaQuery("ANIME", "PLANNING")}",
     ],
     'Continue Reading': [
       "currentManga: ${_continueMediaQuery("MANGA", "CURRENT")}",
-      "repeatingManga: ${_continueMediaQuery("MANGA", "REPEATING")}"
+      "repeatingManga: ${_continueMediaQuery("MANGA", "REPEATING")}",
     ],
     'Favourite Manga': ["favoriteManga: ${_favMediaQuery(false, 1)}"],
     'Planned Manga': [
-      "plannedManga: ${_continueMediaQuery("MANGA", "PLANNING")}"
+      "plannedManga: ${_continueMediaQuery("MANGA", "PLANNING")}",
     ],
     'Recommended': [
       "recommendationQuery: ${_recommendationQuery()}",
       "recommendationPlannedQueryAnime: ${_recommendationPlannedQuery("ANIME")}",
-      "recommendationPlannedQueryManga: ${_recommendationPlannedQuery("MANGA")}"
+      "recommendationPlannedQueryManga: ${_recommendationPlannedQuery("MANGA")}",
     ],
   };
 
@@ -255,7 +265,8 @@ String _recommendationQuery() => '''
   }
 ''';
 
-String _recommendationPlannedQuery(String type) => '''
+String _recommendationPlannedQuery(String type) =>
+    '''
   MediaListCollection(userId: ${Anilist.userid}, type: $type, status: PLANNING${type == "ANIME" ? ", sort: MEDIA_POPULARITY_DESC" : ""}) { 
     lists { 
       entries { 
@@ -287,7 +298,8 @@ String _recommendationPlannedQuery(String type) => '''
   }
 ''';
 
-String _continueMediaQuery(String type, String status) => '''
+String _continueMediaQuery(String type, String status) =>
+    '''
   MediaListCollection(userId: ${Anilist.userid}, type: $type, status: $status, sort: UPDATED_TIME) { 
     lists { 
       entries { 
@@ -316,7 +328,8 @@ String _continueMediaQuery(String type, String status) => '''
   }
 ''';
 
-String _favMediaQuery(bool anime, int page) => '''
+String _favMediaQuery(bool anime, int page) =>
+    '''
   User(id: ${Anilist.userid}) { 
     id 
     favourites { 

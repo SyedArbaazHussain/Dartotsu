@@ -1,14 +1,14 @@
 import 'dart:io';
 
 import 'package:dartotsu/Adaptor/Episode/EpisodeAdaptor.dart';
+import 'package:dartotsu/Preferences/Preferences.dart';
 import 'package:dartotsu_extension_bridge/dartotsu_extension_bridge.dart';
 import 'package:dartotsu_extension_bridge/Models/Video.dart' as v;
 import 'package:dartotsu/DataClass/Media.dart' as m;
 import 'package:dartotsu/Functions/Extensions.dart';
 import 'package:dartotsu/Functions/Function.dart';
 import 'package:dartotsu/Functions/string_extensions.dart';
-import 'package:dartotsu/Preferences/IsarDataClasses/DefaultPlayerSettings/DefaultPlayerSettings.dart';
-import 'package:dartotsu/Preferences/PrefManager.dart';
+import 'package:dartotsu/Preferences/ObjectBox/DefaultPlayerSettings.dart';
 import 'package:dartotsu/Screens/Anime/Player/Platform/WindowsPlayer.dart';
 import 'package:dartotsu/Theme/LanguageSwitcher.dart';
 import 'package:dartotsu/Widgets/AlertDialogBuilder.dart';
@@ -22,7 +22,7 @@ import 'package:window_manager/window_manager.dart';
 import '../../../../../../Api/Discord/Discord.dart';
 import '../../../../../../Api/Discord/DiscordService.dart';
 import '../../../../../../Api/EpisodeDetails/Aniskip/Aniskip.dart';
-import '../../../Preferences/IsarDataClasses/MediaSettings/MediaSettings.dart';
+import '../../../Preferences/ObjectBox/MediaSettings.dart';
 import '../../Settings/SettingsPlayerScreen.dart';
 import 'Platform/BasePlayer.dart';
 import 'Player.dart';
@@ -70,7 +70,8 @@ class _PlayerControllerState extends State<PlayerController> {
     showEpisodes = widget.player.showEpisodes;
     resizeMode = widget.player.resizeMode;
 
-    settings = media.settings.playerSettings;
+    ssettings = (media.settings as dynamic) as PlayerSettings;
+
     fitType = settings.resizeMode;
     WakelockPlus.enable();
     if (!widget.player.isMobile) initFullScreen();

@@ -1,4 +1,5 @@
 import 'package:dartotsu/Preferences/PrefManager.dart';
+import 'package:dartotsu/Preferences/Preferences.dart';
 import 'package:dartotsu_extension_bridge/ExtensionManager.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -23,13 +24,13 @@ class SettingsExtensionsScreenState extends BaseSettingsScreen {
 
   @override
   Widget icon() => Padding(
-        padding: const EdgeInsets.only(right: 16),
-        child: Icon(
-          size: 52,
-          Icons.extension,
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
-      );
+    padding: const EdgeInsets.only(right: 16),
+    child: Icon(
+      size: 52,
+      Icons.extension,
+      color: Theme.of(context).colorScheme.onSurface,
+    ),
+  );
 
   @override
   List<Widget> get settingsList {
@@ -39,19 +40,16 @@ class SettingsExtensionsScreenState extends BaseSettingsScreen {
       if (showExtensionList)
         buildDropdownMenu(
           padding: const EdgeInsets.symmetric(vertical: 12.0),
-          currentValue:
-              ExtensionType.fromManager(manager.currentManager).toString(),
+          currentValue: ExtensionType.fromManager(
+            manager.currentManager,
+          ).toString(),
           options: getSupportedExtensions.map((e) => e.toString()).toList(),
           onChanged: (String newValue) {
-            manager.setCurrentManager(
-              ExtensionType.fromString(newValue),
-            );
+            manager.setCurrentManager(ExtensionType.fromString(newValue));
           },
           prefixIcon: Icons.source,
         ),
-      SettingsAdaptor(
-        settings: _buildSettings(context),
-      ),
+      SettingsAdaptor(settings: _buildSettings(context)),
     ];
   }
 
@@ -83,17 +81,18 @@ class SettingsExtensionsScreenState extends BaseSettingsScreen {
         name: getString.loadExtensionsIcon,
         description: getString.loadExtensionsIconDesc,
         icon: Icons.image_not_supported_rounded,
-        isChecked: loadCustomData('loadExtensionIcon') ?? true,
-        onSwitchChange: (value) => saveCustomData('loadExtensionIcon', value),
+        isChecked: PrefManager.getCustomVal('loadExtensionIcon') ?? true,
+        onSwitchChange: (value) =>
+            PrefManager.setCustomVal('loadExtensionIcon', value),
       ),
       Setting(
         type: SettingType.switchType,
         name: getString.autoUpdate,
         description: getString.autoUpdateDesc,
         icon: Icons.update,
-        isChecked: loadData(PrefName.autoUpdateExtensions),
+        isChecked: PrefManager.getVal(PrefName.autoUpdateExtensions),
         onSwitchChange: (value) =>
-            saveData(PrefName.autoUpdateExtensions, value),
+            PrefManager.setVal(PrefName.autoUpdateExtensions, value),
       ),
     ];
   }

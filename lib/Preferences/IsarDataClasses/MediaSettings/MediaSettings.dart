@@ -34,14 +34,16 @@ class MediaSettings {
     this.selectedScanlators,
     PlayerSettings? playerSetting,
     ReaderSettings? readerSetting,
-  })  : playerSettings = playerSetting ??
-            PlayerSettings.fromJson(
-              jsonDecode(loadData(PrefName.playerSettings)),
-            ),
-        readerSettings = readerSetting ??
-            ReaderSettings.fromJson(
-              jsonDecode(loadData(PrefName.readerSettings)),
-            );
+  }) : playerSettings =
+           playerSetting ??
+           PlayerSettings.fromJson(
+             jsonDecode(loadData(PrefName.playerSettings)),
+           ),
+       readerSettings =
+           readerSetting ??
+           ReaderSettings.fromJson(
+             jsonDecode(loadData(PrefName.readerSettings)),
+           );
 
   factory MediaSettings.fromJson(Map<String, dynamic> json) {
     return MediaSettings(
@@ -52,7 +54,8 @@ class MediaSettings {
       server: json['server'],
       selectedScanlators: json['selectedScanlators'],
       playerSetting: PlayerSettings.fromJson(
-          json['playerSettings'] as Map<String, dynamic>),
+        json['playerSettings'] as Map<String, dynamic>,
+      ),
       readerSetting: json['readerSettings'],
     );
   }

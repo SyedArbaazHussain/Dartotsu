@@ -9,8 +9,9 @@ extension on AnilistQueries {
   }
 
   Future<String?> _bannerImage(String type) async {
-    var url = loadCustomData<String>("banner_${type}_url");
-    var time = loadCustomData<int>("banner_${type}_time");
+    var url = PrefManager.getCustomVal<String>("banner_${type}_url");
+    var time = PrefManager.getCustomVal<int>("banner_${type}_time");
+
     bool checkTime() {
       if (time == null) return true;
       return DateTime.now()
@@ -20,9 +21,11 @@ extension on AnilistQueries {
     }
 
     if (url == null || url.isEmpty || checkTime()) {
-      final response =
-          await executeQuery<MediaListCollectionResponse>(_queryBanner(type));
-      final entries = response?.data?.mediaListCollection?.lists
+      final response = await executeQuery<MediaListCollectionResponse>(
+        _queryBanner(type),
+      );
+      final entries =
+          response?.data?.mediaListCollection?.lists
               ?.expand((list) => list.entries ?? [] as List<api.MediaList>)
               .where((e) => !(e.media?.isAdult ?? false))
               .map((e) => e.media?.bannerImage)
@@ -34,10 +37,14 @@ extension on AnilistQueries {
       entries.shuffle(Random());
       var random = entries.isNotEmpty ? entries.first : null;
 
-      saveCustomData("banner_${type}_url", random);
-      saveCustomData(
-          "banner_${type}_time", DateTime.now().millisecondsSinceEpoch);
+      // Save using PrefManager
+      PrefManager.setCustomVal("banner_${type}_url", random);
+      PrefManager.setCustomVal(
+        "banner_${type}_time",
+        DateTime.now().millisecondsSinceEpoch,
+      );
 
+      // Return the selected banner URL
       return random;
     } else {
       return url;
@@ -45,7 +52,8 @@ extension on AnilistQueries {
   }
 }
 
-String _queryBanner(String type) => '''{
+String _queryBanner(String type) =>
+    '''{
   MediaListCollection(
     userId: ${Anilist.userid}, 
     type: $type, 

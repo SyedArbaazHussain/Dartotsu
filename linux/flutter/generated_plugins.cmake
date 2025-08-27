@@ -8,9 +8,9 @@ list(APPEND FLUTTER_PLUGIN_LIST
   dynamic_color
   flutter_qjs
   gtk
-  isar_flutter_libs
   media_kit_libs_linux
   media_kit_video
+  objectbox_flutter_libs
   screen_retriever_linux
   url_launcher_linux
   volume_controller

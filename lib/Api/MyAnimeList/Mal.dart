@@ -3,16 +3,17 @@ import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:objectbox/objectbox.dart';
 
 import '../../Functions/Function.dart';
-import '../../Preferences/IsarDataClasses/MalToken/MalToken.dart';
-import '../../Preferences/PrefManager.dart';
 import '../../Services/BaseServiceData.dart';
 import '../../Widgets/CustomBottomDialog.dart';
 import '../TypeFactory.dart';
 import 'Login.dart' as MalLogin;
 import 'MalQueries.dart';
 import 'MalQueries/MalStrings.dart';
+import '../../Preferences/ObjectBox/ObjectBox.dart';
+import '../../Preferences/ObjectBox/MalTokenEntity.dart';
 
 var Mal = Get.put(MalController());
 
@@ -48,42 +49,47 @@ class MalController extends BaseServiceData {
   }
 
   List<Map<String, int>> get currentSeasons => [
-        getSeason(false),
-        {seasons[currentSeason]: currentYear},
-        getSeason(true),
-      ];
+    getSeason(false),
+    {seasons[currentSeason]: currentYear},
+    getSeason(true),
+  ];
+
+  final _loadingToken = false.obs;
+
+  MalTokenEntity? get _currentToken =>
+      malTokenBox.getAll().isNotEmpty ? malTokenBox.getAll().first : null;
 
   @override
   bool getSavedToken() {
-    var malToken = loadData(PrefName.malToken);
+    final malToken = _currentToken;
     if (malToken == null) return false;
+
     token.value = malToken.accessToken;
 
     if (token.isNotEmpty) {
-      getToken().then((m) {
-        query?.getUserData();
-      });
+      getToken().then((_) => query?.getUserData());
     }
     return token.isNotEmpty;
   }
 
-  final _loadingToken = false.obs;
-
   Future<void> getToken() async {
-    var malToken = loadData(PrefName.malToken);
+    final malToken = _currentToken;
     if (malToken == null) return;
+
     if (DateTime.now().millisecondsSinceEpoch > malToken.expiresIn) {
       if (_loadingToken.value) {
-        while (_loadingToken.value == true) {
+        while (_loadingToken.value) {
           await Future.delayed(const Duration(milliseconds: 100));
         }
         return;
       }
       _loadingToken.value = true;
-      malToken = await refreshToken();
-      if (malToken == null) return;
+      final refreshedToken = await refreshToken();
+      if (refreshedToken == null) return;
     }
-    token.value = malToken.accessToken;
+
+    final updatedToken = _currentToken;
+    if (updatedToken != null) token.value = updatedToken.accessToken;
   }
 
   @override
@@ -92,7 +98,7 @@ class MalController extends BaseServiceData {
 
   @override
   void removeSavedToken() {
-    removeData(PrefName.malToken);
+    malTokenBox.removeAll();
     token.value = '';
     username.value = '';
     adult = false;
@@ -108,35 +114,54 @@ class MalController extends BaseServiceData {
   }
 
   @override
-  Future<void> saveToken(String token) async {
-    var res = ResponseToken.fromJson(json.decode(token));
+  Future<void> saveToken(String tokenStr) async {
+    final res = ResponseToken.fromJson(json.decode(tokenStr));
     res.expiresIn += DateTime.now().millisecondsSinceEpoch;
-    saveData<ResponseToken?>(PrefName.malToken, res);
+
+    final entity = MalTokenEntity(
+      accessToken: res.accessToken,
+      refreshToken: res.refreshToken,
+      expiresIn: res.expiresIn,
+    );
+
+    malTokenBox.removeAll();
+    malTokenBox.put(entity);
+
+    token.value = res.accessToken;
     run.value = true;
     isInitialized.value = false;
-    this.token.value = res.accessToken;
     query?.getUserData();
     Refresh.refreshService(RefreshId.Mal);
   }
 
   Future<ResponseToken?> refreshToken() async {
-    final malToken = loadData(PrefName.malToken);
-    if (malToken == null) {
+    final malTokenEntity = _currentToken;
+    if (malTokenEntity == null) {
       throw Exception('Failed to load refresh token');
     }
+
     final response = await http.post(
       Uri.parse('https://myanimelist.net/v1/oauth2/token'),
       body: {
         'client_id': MalStrings.clientId,
         'grant_type': 'refresh_token',
-        'refresh_token': malToken.refreshToken,
+        'refresh_token': malTokenEntity.refreshToken,
       },
     );
 
     if (response.statusCode == 200) {
       final res = ResponseToken.fromJson(json.decode(response.body));
       res.expiresIn += DateTime.now().millisecondsSinceEpoch;
-      saveData(PrefName.malToken, res);
+
+      final entity = MalTokenEntity(
+        accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
+        expiresIn: res.expiresIn,
+      );
+
+      malTokenBox.removeAll();
+      malTokenBox.put(entity);
+
       token.value = res.accessToken;
       _loadingToken.value = false;
       return res;
@@ -157,10 +182,12 @@ class MalController extends BaseServiceData {
   }) async {
     await getToken();
     if (!rateLimiter.canMakeRequest()) {
-      final secondsLeft =
-          rateLimiter.resetTime.difference(DateTime.now()).inSeconds;
+      final secondsLeft = rateLimiter.resetTime
+          .difference(DateTime.now())
+          .inSeconds;
       debugPrint(
-          "Rate limited. Wait ${secondsLeft}s before making new requests.");
+        "Rate limited. Wait ${secondsLeft}s before making new requests.",
+      );
       throw Exception("Rate limited. Wait ${secondsLeft}s.");
     }
     if (adult) {
@@ -176,10 +203,8 @@ class MalController extends BaseServiceData {
         headers["Authorization"] = "Bearer ${token.value}";
       }
     }
-    final response = await http.get(
-      Uri.parse(url),
-      headers: headers,
-    );
+
+    final response = await http.get(Uri.parse(url), headers: headers);
 
     rateLimiter.increment();
     debugPrint("Remaining Mal requests: ${rateLimiter.remainingRequests}");
@@ -212,7 +237,5 @@ class RateLimiter {
     requestCount++;
   }
 
-  int get remainingRequests {
-    return maxRequestsPerMinute - requestCount;
-  }
+  int get remainingRequests => maxRequestsPerMinute - requestCount;
 }

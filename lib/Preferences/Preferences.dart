@@ -1,4 +1,9 @@
-part of 'PrefManager.dart';
+import 'dart:convert';
+
+import 'package:dartotsu/Preferences/ObjectBox/DefaultPlayerSettings.dart';
+import 'package:dartotsu/Preferences/ObjectBox/DefaultReaderSettings.dart';
+import 'package:dartotsu/Preferences/ObjectBox/ShowResponse.dart';
+import 'package:dartotsu/Preferences/PrefManager.dart';
 
 class PrefName {
   static const source = Pref('source', 'ANILIST');
@@ -137,14 +142,13 @@ class PrefName {
   static Pref<String> readerSettings =
       Pref('readerSetting', jsonEncode(ReaderSettings().toJson()));
 
-  // TODO => Remoove this when you add player settings (needless to say but still)
   static Pref<String> mpvConfigDir = const Pref<String>('mpvConfigDir', '');
   static Pref<bool> useCustomMpvConfig =
       const Pref<bool>('useCustomMpvConfig', false);
 
   //Protection
   static const anilistToken = Pref('AnilistToken', '');
-  static const Pref<ResponseToken?> malToken = Pref('MalToken', null);
+  static const Pref<ShowResponse?> malToken = Pref('MalToken', null);
   static const simklToken = Pref('SimklToken', '');
   static const discordToken = Pref('DiscordToken', '');
   static const discordUserName = Pref('discordUserName', '');

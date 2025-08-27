@@ -23,9 +23,13 @@
 -keep class com.fasterxml.jackson.core.** { *; }
 -keep class com.fasterxml.jackson.databind.** { *; }
 
-
-# Keep Isar classes
--keep class isar.** { *; }
+# Keep ObjectBox generated entity and relation classes
+-keep class io.objectbox.** { *; }
+-keep class **_ObjectBox { *; }
+-keepclassmembers class ** {
+    @io.objectbox.annotation.* <fields>;
+    @io.objectbox.annotation.* <methods>;
+}
 
 # Keep Riverpod classes
 -keep class riverpod.** { *; }
@@ -36,6 +40,7 @@
 -keep class **_Freezed {
     <init>(...);
 }
+
 # Keep annotations
 -keepattributes *Annotation*
 

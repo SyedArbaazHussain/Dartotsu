@@ -20,8 +20,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:get/get.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
-import 'package:isar/isar.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:objectbox/objectbox.dart';
 import 'package:provider/provider.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
 import 'package:window_manager/window_manager.dart';
@@ -29,7 +29,7 @@ import 'package:window_manager/window_manager.dart';
 import 'Api/Discord/Discord.dart';
 import 'Api/TypeFactory.dart';
 import 'Functions/RegisterProtocol/Api.dart';
-import 'Preferences/PrefManager.dart';
+import 'Preferences/ObjectBox/ObjectBox.dart';
 import 'Screens/Anime/AnimeScreen.dart';
 import 'Screens/Home/HomeScreen.dart';
 import 'Screens/HomeNavBar.dart';
@@ -43,16 +43,40 @@ import 'Widgets/CachedNetworkImage.dart';
 import 'l10n/app_localizations.dart';
 import 'logger.dart';
 
-late Isar isar;
+late final Store store;
 
 void main(List<String> args) async {
   runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
-      if (Platform.isLinux && runWebViewTitleBarWidget(args)) {
-        return;
+
+      // Initialize ObjectBox
+      store = await openStore();
+      await objectBox.init();
+
+      if (Platform.isLinux && runWebViewTitleBarWidget(args)) return;
+
+      await PrefManager.init();
+      await DartotsuExtensionBridge().init(store, "Darotsu");
+      await Logger.init();
+      await MpvConf.init();
+      MediaService.init();
+      TypeFactory.init();
+
+      MediaKit.ensureInitialized();
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        await WindowManager.instance.ensureInitialized();
       }
-      await init();
+
+      initializeDateFormatting();
+      final supportedLocales = DateFormat.allLocalesWithSymbols();
+      for (var locale in supportedLocales) {
+        initializeDateFormatting(locale);
+      }
+
+      Discord.getSavedToken();
+      initDeepLinkListener();
+
       runApp(
         MultiProvider(
           providers: [
@@ -73,45 +97,22 @@ void main(List<String> args) async {
       },
     ),
   );
+
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
     Logger.log(
       'FlutterError: ${details.exception}\n${details.stack}',
       logLevel: LogLevel.error,
     );
-  }; //TODO: setup error screen
+  };
 
   PlatformDispatcher.instance.onError = (error, stack) {
-    Logger.log('PlatformDispatcher error: $error\n$stack',
-        logLevel: LogLevel.error);
+    Logger.log(
+      'PlatformDispatcher error: $error\n$stack',
+      logLevel: LogLevel.error,
+    );
     return true;
   };
-}
-
-Future init() async {
-  if (Platform.isWindows) {
-    ['dar', 'anymex', 'sugoireads', 'mangayomi']
-        .forEach(registerProtocolHandler);
-  }
-  await PrefManager.init();
-  await DartotsuExtensionBridge().init(isar, "Darotsu");
-  await Logger.init();
-  await MpvConf.init();
-  MediaService.init();
-  TypeFactory.init();
-
-  MediaKit.ensureInitialized();
-  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-    await WindowManager.instance.ensureInitialized();
-  }
-  initializeDateFormatting();
-  final supportedLocales = DateFormat.allLocalesWithSymbols();
-  for (var locale in supportedLocales) {
-    initializeDateFormatting(locale);
-  }
-
-  Discord.getSavedToken();
-  initDeepLinkListener();
 }
 
 void initDeepLinkListener() async {
@@ -137,6 +138,7 @@ void handleDeepLink(Uri uri) {
 
   const mangayomiSchemes = {"dar", "anymex", "sugoireads", "mangayomi"};
   const aniyomiSchemes = {"aniyomi", "tachiyomi"};
+
   if (mangayomiSchemes.contains(scheme)) {
     var manager = Get.find<MangayomiExtensions>(tag: 'MangayomiExtensions');
     final repoMap = {
@@ -155,10 +157,9 @@ void handleDeepLink(Uri uri) {
     var manager = Get.find<AniyomiExtensions>(tag: 'AniyomiExtensions');
     final url = uri.queryParameters["url"];
     if (url != null && url.isNotEmpty) {
-      manager.onRepoSaved(
-        [url],
-        scheme == "aniyomi" ? ItemType.anime : ItemType.manga,
-      );
+      manager.onRepoSaved([
+        url,
+      ], scheme == "aniyomi" ? ItemType.anime : ItemType.manga);
       isRepoAdded = true;
     }
   }
@@ -194,10 +195,13 @@ class MyApp extends StatelessWidget {
             bool isFullScreen = await windowManager.isFullScreen();
             windowManager.setFullScreen(!isFullScreen);
           } else if (event.logicalKey == LogicalKeyboardKey.enter) {
-            final isAltPressed = HardwareKeyboard.instance.logicalKeysPressed
-                    .contains(LogicalKeyboardKey.altLeft) ||
-                HardwareKeyboard.instance.logicalKeysPressed
-                    .contains(LogicalKeyboardKey.altRight);
+            final isAltPressed =
+                HardwareKeyboard.instance.logicalKeysPressed.contains(
+                  LogicalKeyboardKey.altLeft,
+                ) ||
+                HardwareKeyboard.instance.logicalKeysPressed.contains(
+                  LogicalKeyboardKey.altRight,
+                );
             if (isAltPressed) {
               bool isFullScreen = await windowManager.isFullScreen();
               windowManager.setFullScreen(!isFullScreen);
@@ -319,7 +323,6 @@ class MainActivityState extends State<MainActivity> {
               ),
             ),
           ),
-          // Gradient overlay at the bottom 75%
           Positioned.fill(
             child: Align(
               alignment: Alignment.bottomCenter,
@@ -331,10 +334,7 @@ class MainActivityState extends State<MainActivity> {
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        theme.surface,
-                      ],
+                      colors: [Colors.transparent, theme.surface],
                     ),
                   ),
                 ),
